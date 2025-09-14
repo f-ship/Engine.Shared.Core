@@ -51,6 +51,10 @@ kotlin {
             implementation("org.jetbrains.kotlinx:kotlinx-serialization-core:1.6.3")
             implementation("org.jetbrains.kotlinx:kotlinx-serialization-json:1.6.3")
             implementation("ship.f.engine.shared.utils:serverdrivenui")
+            implementation("org.jetbrains.kotlinx:kotlinx-datetime:0.6.2")
+            implementation("org.jetbrains.kotlinx:kotlinx-serialization-json:1.6.0")
+            implementation("io.ktor:ktor-serialization-kotlinx-json:3.0.0")
+            implementation("io.ktor:ktor-client-content-negotiation:3.0.0")
             implementation(compose.components.resources)
             implementation(compose.runtime)
         }
