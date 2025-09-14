@@ -9,6 +9,7 @@ abstract class MiddleWare<E : ScopedEvent> {
     private var isInitialized = false
     operator fun invoke(event: ScopedEvent): E? = process(event as E)
 
+    // I can't remember what this method is supposed to do? Can't even be overridden
     private fun init() {
 
     }
