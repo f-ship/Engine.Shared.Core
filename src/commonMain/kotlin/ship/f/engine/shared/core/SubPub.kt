@@ -3,6 +3,7 @@ package ship.f.engine.shared.core
 import androidx.compose.runtime.MutableState
 import androidx.compose.runtime.mutableStateOf
 import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.delay
 import kotlinx.datetime.Clock
 import kotlinx.serialization.Serializable
 import ship.f.engine.shared.core.ScopeTo.SingleScopeTo
@@ -25,6 +26,7 @@ abstract class SubPub<S : State>(
     protected val coroutineScope: CoroutineScope = engine.engineScope
 
     val linkedExpectations = mutableMapOf<Pair<EClass, String?>, LinkedExpectation>()
+    val queuedEvents = mutableListOf<E>()
 
     abstract fun initState(): S
     abstract suspend fun onEvent()
@@ -48,6 +50,7 @@ abstract class SubPub<S : State>(
                     updatedAllList.forEach { expectation ->
                         val event = getEvent(expectation.first.expectedEvent)!!
                         expectation.first.runOn(event)
+                        queuedEvents.add(event)
                         blockedEvents.remove(expectation.first.expectedEvent)
                     }
                     expectationsToRemove.add(linkedExpectation.key)
@@ -57,6 +60,7 @@ abstract class SubPub<S : State>(
                 for (any in anyList) {
                     if (any.expectedEvent == lastEvent::class && !blockedEvents.contains(any.expectedEvent) && any.runOnCheck(lastEvent)) {
                         any.runOn(lastEvent)
+                        queuedEvents.add(lastEvent)
                         expectationsToRemove.add(linkedExpectation.key)
                         break
                     }
@@ -124,6 +128,23 @@ abstract class SubPub<S : State>(
             all = listOf(),
         )
         linkedExpectations[Pair(emittedEvent::class, key)] = linkedExpectation
+    }
+
+    suspend fun Expectation.onceAnySync(vararg expectationBuilders: ExpectationBuilder<out ScopedEvent>): ScopedEvent {
+        val any = mutableListOf<ExpectationBuilder<out ScopedEvent>>()
+        expectationBuilders.forEach {
+            any.add(it)
+        }
+        val linkedExpectation = LinkedExpectation(
+            any = any,
+            all = listOf(),
+        )
+        linkedExpectations[Pair(emittedEvent::class, key)] = linkedExpectation
+
+        while (expectationBuilders.any { it.expectedEvent != queuedEvents.lastOrNull()?.let { e -> e::class } }){
+           delay(10)
+        }
+        return queuedEvents.last() as ScopedEvent
     }
 
     fun Expectation.onceAll(vararg expectationBuilders: ExpectationBuilder<out ScopedEvent>) {
