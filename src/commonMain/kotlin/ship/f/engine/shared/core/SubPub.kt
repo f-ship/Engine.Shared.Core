@@ -68,6 +68,7 @@ abstract class SubPub<S : State>(
             }
             expectationsToRemove.forEach { linkedExpectations.remove(it) } // TODO to avoid ConcurrentModificationException
         }
+        if (this::class.simpleName == "CommSubPub") println("CommSubPub about to trigger onEvent")
         onEvent()
         if (!isReady.value) isReady.value = checkIfReady()
     }
@@ -333,6 +334,7 @@ abstract class SubPub<S : State>(
     }
 
     inline fun <reified E1 : E> le(func: (E1) -> Unit) {
+        if (E1::class == ScopedEvent.AuthEvent::class && this::class.simpleName == "CommSubPub") println("Now calling le E for $lastEvent")
         val le = lastEvent
         if (le is E1) func(le)
     }

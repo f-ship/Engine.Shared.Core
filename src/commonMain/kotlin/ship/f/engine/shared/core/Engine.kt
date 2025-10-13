@@ -48,6 +48,7 @@ object Engine {
             val eventConfigs = config.eventMiddleWareConfig[computedEvent::class]!!.eventConfigs
             eventConfigs[scope] = eventConfigs[scope]?.copy(event = computedEvent) ?: EventConfig(computedEvent, setOf())
             eventConfigs[scope]!!.listeners.forEach {
+                if (computedEvent::class == ScopedEvent.AuthEvent::class) println("Auth Event being sent to $it")
                 it.lastEvent = computedEvent
                 it.executeEvent()
             }
