@@ -13,8 +13,6 @@ object Engine {
     var hasBeenInit = false
 
     val engineScope = CoroutineScope(Dispatchers.Default)
-
-    val identifier = config.identifier
     fun <E : ScopedEvent> getEvent(
         event: KClass<E>,
         scope: ScopeTo
@@ -97,7 +95,6 @@ object Engine {
 
 @Serializable
 data class Config(
-    val identifier: String = "Default",
     val subPubConfig: Map<SPClass, SubPubConfig> = mapOf(),
     val eventMiddleWareConfig: Map<EClass, EventMiddleWareConfig> = mapOf(),
     val dependencyConfig: Map<DClass, DependencyConfig> = mapOf(), // TODO Should have a way to make arbitrary independence that don't implement Dependency
