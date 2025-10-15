@@ -1,15 +1,19 @@
 package ship.f.engine.shared.core
 
+import kotlinx.serialization.SerialName
 import kotlinx.serialization.Serializable
 
 @Serializable
+@SerialName("ScopedEvent")
 abstract class ScopedEvent {
     @Serializable
+    @SerialName("InitialEvent")
     data class InitialEvent(val name: String) : ScopedEvent() { //I may be making an error with this scope implementation as well... Actually, I might be okay
         override fun getScopes(): List<ScopeTo> = listOf(ScopeTo.SingleScopeTo(value = name))
     }
 
     @Serializable
+    @SerialName("AuthEvent")
     data class AuthEvent(
         val userId: String? = null,
         val deviceId: String? = null,
@@ -27,6 +31,7 @@ abstract class ScopedEvent {
 }
 
 @Serializable
+@SerialName("Event")
 abstract class Event : ScopedEvent() {
     override fun getScopes(): List<ScopeTo> = emptyList()
 }
