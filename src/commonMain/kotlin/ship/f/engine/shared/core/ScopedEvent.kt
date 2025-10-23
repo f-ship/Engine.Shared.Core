@@ -19,7 +19,8 @@ abstract class ScopedEvent {
         val deviceId: String? = null,
         val fcmToken: String? = null,
         val accessToken: String? = null,
-        val refreshToken: String? = null
+        val refreshToken: String? = null,
+        val eventResources: List<String> = listOf()
     ) : ScopedEvent() {
 //        override fun getScopes(): List<ScopeTo> = listOf(
 //            userId?.let { ScopeTo.SingleScopeTo(value = it) } ?: defaultScope TODO potentially causing double event sending because of the scoping
