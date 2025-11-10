@@ -3,10 +3,16 @@ package ship.f.engine.shared.core
 import androidx.compose.runtime.MutableState
 import androidx.compose.runtime.mutableStateOf
 import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.flow.FlowCollector
+import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.flow.flow
 import kotlinx.datetime.Clock
+import kotlinx.serialization.SerialName
 import kotlinx.serialization.Serializable
 import ship.f.engine.shared.core.ScopeTo.SingleScopeTo
+import ship.f.engine.shared.core.ScopedEvent.AuthEvent
 import kotlin.reflect.KClass
 
 @Serializable
@@ -24,6 +30,7 @@ abstract class SubPub<S : State>(
     val isReady: MutableState<Boolean> = mutableStateOf(false)
     private val idempotentMap: MutableMap<EClass, MutableSet<String>> = mutableMapOf()
     protected val coroutineScope: CoroutineScope = engine.engineScope
+    val subPubScope: CoroutineScope = CoroutineScope(Dispatchers.Default)
 
     val linkedExpectations = mutableMapOf<Pair<EClass, String?>, LinkedExpectation>()
     val queuedEvents = mutableListOf<E>()
@@ -33,7 +40,8 @@ abstract class SubPub<S : State>(
 
     // TODO really is another awful method right here, that being said this single handedly enables me to handle sync work
     suspend fun executeEvent() {
-        getEvent(lastEvent::class)?.let { lastEvent ->
+        val event = getEvent(lastEvent::class)
+        event?.let { lastEvent ->
             val expectationsToRemove: MutableList<Pair<EClass, String?>> = mutableListOf()
             linkedExpectations.forEach { linkedExpectation ->
                 val blockedEvents = mutableSetOf<EClass>()
@@ -58,7 +66,10 @@ abstract class SubPub<S : State>(
 
                 val anyList = linkedExpectation.value.any
                 for (any in anyList) {
-                    if (any.expectedEvent == lastEvent::class && !blockedEvents.contains(any.expectedEvent) && any.runOnCheck(lastEvent)) {
+                    if (any.expectedEvent == lastEvent::class && !blockedEvents.contains(any.expectedEvent) && any.runOnCheck(
+                            lastEvent
+                        )
+                    ) {
                         any.runOn(lastEvent)
                         queuedEvents.add(lastEvent)
                         expectationsToRemove.add(linkedExpectation.key)
@@ -68,9 +79,84 @@ abstract class SubPub<S : State>(
             }
             expectationsToRemove.forEach { linkedExpectations.remove(it) } // TODO to avoid ConcurrentModificationException
         }
-        if (this::class.simpleName == "CommSubPub") println("CommSubPub about to trigger onEvent")
+        event?.let { executeExpectation(it) }
         onEvent()
         if (!isReady.value) isReady.value = checkIfReady()
+    }
+
+    // Pretty clean and neat solution compared to before, could even wrap in a flow
+    suspend fun executeExpectation(event: ScopedEvent) {
+        expectationMap[event::class.simpleName]?.distinctBy { it.type }?.forEach { exp ->
+            val expectedEvent = getEvent(exp.eventClass)!!
+            val expectations = typeExpectationMap[exp.type]!!
+            val success = if (exp.type is ExpType.Any) {
+                expectations.any { it.on(expectedEvent) != null }
+            } else {
+                expectations.all { it.on(expectedEvent) != null }
+            }
+            if (success) typeExpectationMap.remove(exp.type)
+            exp.flow?.emit(expectedEvent)
+        }
+
+    }
+
+    val expectationMap = mutableMapOf<String, List<Exp<ScopedEvent>>>()
+    val typeExpectationMap = mutableMapOf<ExpType, List<Exp<ScopedEvent>>>()
+
+    @Serializable
+    @SerialName("Exp")
+    data class Exp<T : ScopedEvent>(
+        val type: ExpType,
+        val on: (T) -> T?,
+        val eventClass: KClass<T>,
+        val flow: FlowCollector<T>? = null
+    )
+
+    inline fun <reified T : ScopedEvent> expectation2(type: ExpType = ExpType.Any("Default"), noinline on: (T) -> T?) {
+        val exp = Exp(type, on as (ScopedEvent) -> ScopedEvent?, T::class as KClass<ScopedEvent>)
+        expectationMap.safeAdd(T::class.simpleName!!, exp)
+        typeExpectationMap.safeAdd(type, exp)
+    }
+
+    suspend inline fun <reified T : ScopedEvent> expectation3(
+        type: ExpType = ExpType.Any("Default"),
+        vararg on: (T) -> T?
+    ): T {
+        // TODO handle vararg here then job done
+        return flow {
+            val exp = Exp(type, on as (ScopedEvent) -> ScopedEvent?, T::class as KClass<ScopedEvent>, this)
+            expectationMap.safeAdd(T::class.simpleName!!, exp)
+            typeExpectationMap.safeAdd(type, exp)
+        }.first() as T
+    }
+
+    fun <K, V> MutableMap<K, List<V>>.safeAdd(key: K, value: V) {
+        if (this[key] == null) listOf(value)
+        else this[key] = this[key]!! + listOf(value)
+    }
+
+    @Serializable
+    @SerialName("ExpType")
+    sealed class ExpType {
+        abstract val key: String
+
+        @Serializable
+        @SerialName("Any")
+        data class Any(override val key: String) : ExpType()
+
+        @Serializable
+        @SerialName("All")
+        data class All(override val key: String) : ExpType()
+    }
+
+    fun mock() {
+        expectation2<AuthEvent> {
+            if (it.userId == "mockId") {
+                it
+            } else {
+                it
+            }
+        }
     }
 
     private var isInitialized = false //Can probably remove
@@ -142,8 +228,8 @@ abstract class SubPub<S : State>(
         )
         linkedExpectations[Pair(emittedEvent::class, key)] = linkedExpectation
 
-        while (expectationBuilders.any { it.expectedEvent != queuedEvents.lastOrNull()?.let { e -> e::class } }){
-           delay(10)
+        while (expectationBuilders.any { it.expectedEvent != queuedEvents.lastOrNull()?.let { e -> e::class } }) {
+            delay(10)
         }
         return queuedEvents.last() as ScopedEvent
     }
@@ -334,7 +420,7 @@ abstract class SubPub<S : State>(
     }
 
     inline fun <reified E1 : E> le(func: (E1) -> Unit) {
-        if (E1::class == ScopedEvent.AuthEvent::class && this::class.simpleName == "CommSubPub") println("Now calling le E for $lastEvent")
+        if (E1::class == AuthEvent::class && this::class.simpleName == "CommSubPub") println("Now calling le E for $lastEvent")
         val le = lastEvent
         if (le is E1) func(le)
     }
