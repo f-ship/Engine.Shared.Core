@@ -30,6 +30,7 @@ object Engine {
         }
 
         suspend fun launchRunners() {
+//            sduiLog(currentSize, poolSize, tag = "QueueDebug")
             while(currentSize < poolSize) {
                 val popped = pop()
                 if (popped != null) {
@@ -46,6 +47,7 @@ object Engine {
     var hasBeenInit = false
 
     val engineScope = CoroutineScope(Dispatchers.Default)
+    val queue = Queue()
     fun <E : ScopedEvent> getEvent(
         event: KClass<E>,
         scope: ScopeTo
@@ -66,11 +68,11 @@ object Engine {
                 }
             }
         engineScope.launch {
-            initialEvents.forEach { publish(it, "Initial Event") }
+            initialEvents.forEach { publish(it, "Initial Event", true) }
         }
     }
 
-    suspend fun publish(event: E, reason: String) { // Do something with reason
+    suspend fun publish(event: E, reason: String, blocking: Boolean = false) { // Do something with reason
         val middleWares = config.eventMiddleWareConfig[event::class]!!.middleWareConfigs.map { it.listener }
         var computedEvent = event
         middleWares.forEach { middleWare ->
@@ -83,9 +85,10 @@ object Engine {
             eventConfigs[scope]!!.listeners.forEach {
                 if (computedEvent::class == ScopedEvent.AuthEvent::class) println("Auth Event being sent to $it")
                 it.lastEvent = computedEvent
-                it.executeEvent()
+                if (blocking) it.executeEvent() else queue.add { it.executeEvent() }
             }
         }
+        queue.launchRunners()
     }
 
     fun addScopes(subPub: SP, scope: ScopeTo, events: List<EClass>) {
