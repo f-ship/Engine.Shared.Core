@@ -18,11 +18,13 @@ object Engine {
         private val lock = Mutex()
         private val data = mutableListOf<suspend () -> Unit>()
         private var currentSize = 0
-        private val poolSize = getAvailableCores()
-        private val queueScope = CoroutineScope(Dispatchers.Default)
+        private val availableCores = getAvailableCores()
+        private val poolMultiplier = 1
+        var poolSize = availableCores * poolMultiplier
+        private val queueScope = CoroutineScope(Dispatchers.Default.limitedParallelism(poolSize))
 
         suspend fun add(v: suspend () -> Unit) = lock.withLock { data.add(v) }
-        suspend fun pop() : (suspend () -> Unit)? = lock.withLock {
+        suspend fun pop(): (suspend () -> Unit)? = lock.withLock {
             if (data.isNotEmpty()) {
                 currentSize++
                 data.removeAt(0)
@@ -31,7 +33,7 @@ object Engine {
 
         suspend fun launchRunners() {
 //            sduiLog(currentSize, poolSize, tag = "QueueDebug")
-            while(currentSize < poolSize) {
+            while (currentSize < poolSize) {
                 val popped = pop()
                 if (popped != null) {
                     queueScope.launch {
@@ -46,8 +48,20 @@ object Engine {
     private var config = Config()
     var hasBeenInit = false
 
+
     val engineScope = CoroutineScope(Dispatchers.Default)
     val queue = Queue()
+
+    /**
+     * Typically, it is inefficient to allow more coroutines than logical cores available at runtime
+     * as this will require costly context switches if processing is CPU-bound.
+     * Client operations will typically be a mix of cpu intensive work and io intensive work.
+     * We could manage a separate pool for io operations, but using a simple multiplier will be okay for now
+     */
+    fun updatePoolMultiplier(multiplier: Int) {
+        queue.poolSize = multiplier
+    }
+
     fun <E : ScopedEvent> getEvent(
         event: KClass<E>,
         scope: ScopeTo
@@ -63,8 +77,8 @@ object Engine {
         config.subPubConfig.values
             .filter { it.isStartUp }
             .forEach {
-                it.subPubs.values.forEach {
-                    sp -> sp.tryInit()
+                it.subPubs.values.forEach { sp ->
+                    sp.tryInit()
                 }
             }
         engineScope.launch {
@@ -81,7 +95,8 @@ object Engine {
 
         (computedEvent.getScopes() + listOf(defaultScope)).forEach { scope ->
             val eventConfigs = config.eventMiddleWareConfig[computedEvent::class]!!.eventConfigs
-            eventConfigs[scope] = eventConfigs[scope]?.copy(event = computedEvent) ?: EventConfig(computedEvent, setOf())
+            eventConfigs[scope] =
+                eventConfigs[scope]?.copy(event = computedEvent) ?: EventConfig(computedEvent, setOf())
             eventConfigs[scope]!!.listeners.forEach {
                 if (computedEvent::class == ScopedEvent.AuthEvent::class) println("Auth Event being sent to $it")
                 it.lastEvent = computedEvent
@@ -116,7 +131,8 @@ object Engine {
         return b as D
     }
 
-    fun <D : Dependency> addDependency( // TODO this is not comprehensive yet, however scoping will be implemented fully as needed.
+    fun <D : Dependency> addDependency(
+        // TODO this is not comprehensive yet, however scoping will be implemented fully as needed.
         dependency: KClass<out D>,
         dependencyInstance: D,
     ) {

@@ -4,10 +4,7 @@ import androidx.compose.runtime.MutableState
 import androidx.compose.runtime.mutableStateOf
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.FlowCollector
-import kotlinx.coroutines.flow.first
-import kotlinx.coroutines.flow.flow
 import kotlinx.datetime.Clock
 import kotlinx.serialization.SerialName
 import kotlinx.serialization.Serializable
@@ -44,64 +41,63 @@ abstract class SubPub<S : State>(
         event?.let { lastEvent ->
             val expectationsToRemove: MutableList<Pair<EClass, String?>> = mutableListOf()
             linkedExpectations.forEach { linkedExpectation ->
-                val blockedEvents = mutableSetOf<EClass>()
+                var currentExpectation = linkedExpectation.value
+
+                /**
+                 * Crude way of ensure all events are true below
+                 */
                 val allList = linkedExpectation.value.all
                 val updatedAllList = allList.map {
-                    blockedEvents.add(it.first.expectedEvent)
                     if (it.first.expectedEvent == lastEvent::class && it.first.runOnCheck(lastEvent)) {
                         Pair(it.first, true)
                     } else {
                         it
                     }
                 }
+
+                /**
+                 * Block to execute expectations for all
+                 */
                 if (updatedAllList.all { it.second }) {
                     updatedAllList.forEach { expectation ->
                         val event = getEvent(expectation.first.expectedEvent)!!
                         expectation.first.runOn(event)
                         queuedEvents.add(event)
-                        blockedEvents.remove(expectation.first.expectedEvent)
                     }
-                    expectationsToRemove.add(linkedExpectation.key)
+                    currentExpectation = currentExpectation.copy(all = emptyList())
                 }
 
+                /**
+                 * Block to execute expectations for any
+                 */
                 val anyList = linkedExpectation.value.any
                 for (any in anyList) {
-                    if (any.expectedEvent == lastEvent::class && !blockedEvents.contains(any.expectedEvent) && any.runOnCheck(
+                    if (any.expectedEvent == lastEvent::class && any.runOnCheck(
                             lastEvent
                         )
                     ) {
                         any.runOn(lastEvent)
                         queuedEvents.add(lastEvent)
-                        expectationsToRemove.add(linkedExpectation.key)
+                        currentExpectation = currentExpectation.copy(any = emptyList())
                         break
                     }
+                }
+
+                /**
+                 * Block to update linkedExpectations
+                 */
+                if (currentExpectation.all.isEmpty() && currentExpectation.any.isEmpty()) {
+                    expectationsToRemove.add(linkedExpectation.key)
+                } else {
+                    linkedExpectations[linkedExpectation.key] = currentExpectation
                 }
             }
             expectationsToRemove.forEach { linkedExpectations.remove(it) } // TODO to avoid ConcurrentModificationException
         }
-        event?.let { executeExpectation(it) }
+
         onEvent()
         if (!isReady.value) isReady.value = checkIfReady()
     }
-
-    // Pretty clean and neat solution compared to before, could even wrap in a flow
-    suspend fun executeExpectation(event: ScopedEvent) {
-        expectationMap[event::class.simpleName]?.distinctBy { it.type }?.forEach { exp ->
-            val expectedEvent = getEvent(exp.eventClass)!!
-            val expectations = typeExpectationMap[exp.type]!!
-            val success = if (exp.type is ExpType.Any) {
-                expectations.any { it.on(expectedEvent) != null }
-            } else {
-                expectations.all { it.on(expectedEvent) != null }
-            }
-            if (success) typeExpectationMap.remove(exp.type)
-            exp.flow?.emit(expectedEvent)
-        }
-
-    }
-
-    val expectationMap = mutableMapOf<String, List<Exp<ScopedEvent>>>()
-    val typeExpectationMap = mutableMapOf<ExpType, List<Exp<ScopedEvent>>>()
 
     @Serializable
     @SerialName("Exp")
@@ -111,24 +107,6 @@ abstract class SubPub<S : State>(
         val eventClass: KClass<T>,
         val flow: FlowCollector<T>? = null
     )
-
-    inline fun <reified T : ScopedEvent> expectation2(type: ExpType = ExpType.Any("Default"), noinline on: (T) -> T?) {
-        val exp = Exp(type, on as (ScopedEvent) -> ScopedEvent?, T::class as KClass<ScopedEvent>)
-        expectationMap.safeAdd(T::class.simpleName!!, exp)
-        typeExpectationMap.safeAdd(type, exp)
-    }
-
-    suspend inline fun <reified T : ScopedEvent> expectation3(
-        type: ExpType = ExpType.Any("Default"),
-        vararg on: (T) -> T?
-    ): T {
-        // TODO handle vararg here then job done
-        return flow {
-            val exp = Exp(type, on as (ScopedEvent) -> ScopedEvent?, T::class as KClass<ScopedEvent>, this)
-            expectationMap.safeAdd(T::class.simpleName!!, exp)
-            typeExpectationMap.safeAdd(type, exp)
-        }.first() as T
-    }
 
     fun <K, V> MutableMap<K, List<V>>.safeAdd(key: K, value: V) {
         if (this[key] == null) listOf(value)
@@ -147,16 +125,6 @@ abstract class SubPub<S : State>(
         @Serializable
         @SerialName("All")
         data class All(override val key: String) : ExpType()
-    }
-
-    fun mock() {
-        expectation2<AuthEvent> {
-            if (it.userId == "mockId") {
-                it
-            } else {
-                it
-            }
-        }
     }
 
     private var isInitialized = false //Can probably remove
@@ -205,45 +173,34 @@ abstract class SubPub<S : State>(
     // Ultimately, we will still iterate through the entire list
 
     fun Expectation.onceAny(vararg expectationBuilders: ExpectationBuilder<out ScopedEvent>) {
-        if (linkedExpectations.contains(Pair(emittedEvent::class, key))) return
+        val currentExpectation = linkedExpectations[Pair(emittedEvent::class, key)]
         val any = mutableListOf<ExpectationBuilder<out ScopedEvent>>()
+
         expectationBuilders.forEach {
             any.add(it)
         }
-        val linkedExpectation = LinkedExpectation(
-            any = any,
-            all = listOf(), // TODO This is a bug as it means we can't have both any and all on the same event
-        )
-        linkedExpectations[Pair(emittedEvent::class, key)] = linkedExpectation
-    }
 
-    suspend fun Expectation.onceAnySync(vararg expectationBuilders: ExpectationBuilder<out ScopedEvent>): ScopedEvent {
-        val any = mutableListOf<ExpectationBuilder<out ScopedEvent>>()
-        expectationBuilders.forEach {
-            any.add(it)
-        }
         val linkedExpectation = LinkedExpectation(
-            any = any,
-            all = listOf(),
+            any = currentExpectation?.any.orEmpty() + any,
+            all = currentExpectation?.all ?: listOf(), // TODO This is a bug as it means we can't have both any and all on the same event
         )
-        linkedExpectations[Pair(emittedEvent::class, key)] = linkedExpectation
 
-        while (expectationBuilders.any { it.expectedEvent != queuedEvents.lastOrNull()?.let { e -> e::class } }) {
-            delay(10)
-        }
-        return queuedEvents.last() as ScopedEvent
+        linkedExpectations[Pair(emittedEvent::class, key)] = linkedExpectation
     }
 
     fun Expectation.onceAll(vararg expectationBuilders: ExpectationBuilder<out ScopedEvent>) {
-        if (linkedExpectations.contains(Pair(emittedEvent::class, key))) return
+        val currentExpectation = linkedExpectations[Pair(emittedEvent::class, key)]
         val all = mutableListOf<Pair<ExpectationBuilder<out ScopedEvent>, Boolean>>()
+
         expectationBuilders.forEach {
             all.add(Pair(it, false))
         }
+
         val linkedExpectation = LinkedExpectation(
-            any = listOf(),
-            all = all,
+            any = currentExpectation?.any ?: listOf(),
+            all = currentExpectation?.all.orEmpty() + all,
         )
+
         linkedExpectations[Pair(emittedEvent::class, key)] = linkedExpectation
     }
 
