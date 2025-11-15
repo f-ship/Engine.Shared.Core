@@ -3,12 +3,45 @@ package ship.f.engine.shared.core
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.sync.Mutex
+import kotlinx.coroutines.sync.withLock
 import kotlinx.serialization.Serializable
+import ship.f.engine.shared.ext.getAvailableCores
 import kotlin.reflect.KClass
 
 @Suppress("UNCHECKED_CAST") //Should probably create extensions for safe map access
 @Serializable
 object Engine {
+
+    class Queue {
+
+        private val lock = Mutex()
+        private val data = mutableListOf<suspend () -> Unit>()
+        private var currentSize = 0
+        private val poolSize = getAvailableCores()
+        private val queueScope = CoroutineScope(Dispatchers.Default)
+
+        suspend fun add(v: suspend () -> Unit) = lock.withLock { data.add(v) }
+        suspend fun pop() : (suspend () -> Unit)? = lock.withLock {
+            if (data.isNotEmpty()) {
+                currentSize++
+                data.removeAt(0)
+            } else null
+        }
+
+        suspend fun launchRunners() {
+            while(currentSize < poolSize) {
+                val popped = pop()
+                if (popped != null) {
+                    queueScope.launch {
+                        popped()
+                        lock.withLock { currentSize-- }
+                    }
+                } else break
+            }
+        }
+    }
+
     private var config = Config()
     var hasBeenInit = false
 

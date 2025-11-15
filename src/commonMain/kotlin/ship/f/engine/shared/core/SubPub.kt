@@ -212,7 +212,7 @@ abstract class SubPub<S : State>(
         }
         val linkedExpectation = LinkedExpectation(
             any = any,
-            all = listOf(),
+            all = listOf(), // TODO This is a bug as it means we can't have both any and all on the same event
         )
         linkedExpectations[Pair(emittedEvent::class, key)] = linkedExpectation
     }
