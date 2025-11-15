@@ -32,7 +32,6 @@ object Engine {
         }
 
         suspend fun launchRunners() {
-//            sduiLog(currentSize, poolSize, tag = "QueueDebug")
             while (currentSize < poolSize) {
                 val popped = pop()
                 if (popped != null) {
@@ -99,8 +98,15 @@ object Engine {
                 eventConfigs[scope]?.copy(event = computedEvent) ?: EventConfig(computedEvent, setOf())
             eventConfigs[scope]!!.listeners.forEach {
                 if (computedEvent::class == ScopedEvent.AuthEvent::class) println("Auth Event being sent to $it")
-                it.lastEvent = computedEvent
-                if (blocking) it.executeEvent() else queue.add { it.executeEvent() }
+                if (blocking) {
+                    it.lastEvent = computedEvent
+                    it.executeEvent()
+                } else {
+                    queue.add {
+                        it.lastEvent = computedEvent
+                        it.executeEvent()
+                    }
+                }
             }
         }
         queue.launchRunners()
