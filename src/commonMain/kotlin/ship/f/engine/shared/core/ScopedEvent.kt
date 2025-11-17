@@ -22,9 +22,6 @@ abstract class ScopedEvent {
         val refreshToken: String? = null,
         val eventResources: List<String> = listOf()
     ) : ScopedEvent() {
-//        override fun getScopes(): List<ScopeTo> = listOf(
-//            userId?.let { ScopeTo.SingleScopeTo(value = it) } ?: defaultScope TODO potentially causing double event sending because of the scoping
-//        )
         override fun getScopes(): List<ScopeTo> = listOf(ScopeTo.SingleScopeTo(value = "AUTH"))
     }
 

@@ -7,6 +7,7 @@ import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
 import kotlinx.serialization.Serializable
 import ship.f.engine.shared.ext.getAvailableCores
+import ship.f.engine.shared.utils.serverdrivenui2.ext.sduiLog
 import kotlin.reflect.KClass
 
 @Suppress("UNCHECKED_CAST") //Should probably create extensions for safe map access
@@ -86,6 +87,7 @@ object Engine {
     }
 
     suspend fun publish(event: E, reason: String, blocking: Boolean = false) { // Do something with reason
+        sduiLog("Publishing $event because $reason", tag = "Engine")
         val middleWares = config.eventMiddleWareConfig[event::class]!!.middleWareConfigs.map { it.listener }
         var computedEvent = event
         middleWares.forEach { middleWare ->
