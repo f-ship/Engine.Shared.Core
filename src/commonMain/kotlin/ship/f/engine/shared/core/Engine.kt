@@ -86,6 +86,10 @@ object Engine {
         }
     }
 
+    fun runInterceptor(event: EClass, scope: ScopeTo): E? {
+        return config.eventMiddleWareConfig[event]?.interceptor(this, scope)
+    }
+
     suspend fun publish(event: E, reason: String, blocking: Boolean = false) { // Do something with reason
         sduiLog("Publishing $event because $reason", tag = "Engine")
         val middleWares = config.eventMiddleWareConfig[event::class]!!.middleWareConfigs.map { it.listener }
@@ -96,10 +100,9 @@ object Engine {
 
         (computedEvent.getScopes() + listOf(defaultScope)).forEach { scope ->
             val eventConfigs = config.eventMiddleWareConfig[computedEvent::class]!!.eventConfigs
-            eventConfigs[scope] =
-                eventConfigs[scope]?.copy(event = computedEvent) ?: EventConfig(computedEvent, setOf())
+            eventConfigs[scope] = eventConfigs[scope]?.copy(event = computedEvent)
+                ?: EventConfig(computedEvent, setOf())
             eventConfigs[scope]!!.listeners.forEach {
-                if (computedEvent::class == ScopedEvent.AuthEvent::class) println("Auth Event being sent to $it")
                 if (blocking) {
                     it.lastEvent = computedEvent
                     it.executeEvent()
@@ -135,9 +138,16 @@ object Engine {
 
     fun <D : Dependency> getDependency(dependency: KClass<out D>, scope: ScopeTo): D {
         val a = config.dependencyConfig[dependency]!!
-        val b = (a.dependencies[scope] ?: a.build(scope)).apply { init(scope) }
+        val b = a.dependencies[scope] ?: a.build(scope).apply {
+            init(scope)
+            val c = a.copy(dependencies = a.dependencies + mapOf(scope to this))
+            val d = config.dependencyConfig + mapOf(dependency to c)
+            config.copy(dependencyConfig = d)
+        }
         return b as D
     }
+
+    inline fun <reified D : Dependency> get(scope: ScopeTo = defaultScope): D = getDependency(D::class, scope)
 
     fun <D : Dependency> addDependency(
         // TODO this is not comprehensive yet, however scoping will be implemented fully as needed.
@@ -171,6 +181,7 @@ data class SubPubConfig(
 @Serializable
 data class EventMiddleWareConfig(
     val eventConfigs: MutableMap<ScopeTo, EventConfig> = mutableMapOf(),
+    val interceptor: Engine.(ScopeTo) -> E? = { null },
     val middleWareConfigs: List<MiddleWareConfig> = listOf(), // For now Assume all middlewares are created at init
 )
 

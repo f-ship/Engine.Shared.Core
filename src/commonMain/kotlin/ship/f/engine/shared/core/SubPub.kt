@@ -5,6 +5,7 @@ import androidx.compose.runtime.mutableStateOf
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.FlowCollector
+import kotlinx.coroutines.launch
 import kotlinx.datetime.Clock
 import kotlinx.serialization.SerialName
 import kotlinx.serialization.Serializable
@@ -26,7 +27,7 @@ abstract class SubPub<S : State>(
     lateinit var state: MutableState<S>
     val isReady: MutableState<Boolean> = mutableStateOf(false)
     private val idempotentMap: MutableMap<EClass, MutableSet<String>> = mutableMapOf()
-    protected val coroutineScope: CoroutineScope = engine.engineScope
+    val coroutineScope: CoroutineScope = engine.engineScope
     val subPubScope: CoroutineScope = CoroutineScope(Dispatchers.Default)
 
     val linkedExpectations = mutableMapOf<Pair<EClass, String?>, LinkedExpectation>()
@@ -294,17 +295,19 @@ abstract class SubPub<S : State>(
         } else emptyList()).also { if (it.isEmpty()) nFunc() }
     }
 
-    inline fun <reified E1 : E> SubPub<S>.gesf(
+    inline fun <reified E1 : E> SubPub<S>.getOrComputeScopedEvent(
         scopeTo: ScopeTo? = null,
         nFunc: () -> E1 = { error("Not implemented the nFunc and no events found") },
     ) = getScopedEvents(E1::class, scopeTo).let { scopedEvents ->
-        (if (scopedEvents.isNotEmpty()) {
+        ((if (scopedEvents.isNotEmpty()) {
             if (scopeTo != null) {
                 scopedEvents.filter { it.getScopes().contains(scopeTo) }
             } else {
                 scopedEvents
             }
-        } else emptyList()).firstOrNull() ?: nFunc()
+        } else emptyList()).firstOrNull() ?: engine.runInterceptor(E1::class, scopeTo ?: defaultScope) as? E1 ?: nFunc()).also {
+            coroutineScope.launch { publish(it) }
+        }
     }
 
     inline fun <reified E1 : E, reified E2 : E> SubPub<S>.ge2(nFunc: () -> Unit = {}, func: (E1?, E2?) -> Unit) {
