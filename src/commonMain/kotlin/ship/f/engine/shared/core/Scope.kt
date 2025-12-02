@@ -4,6 +4,7 @@ import kotlinx.serialization.Serializable
 import kotlin.reflect.KClass
 
 val defaultScope = ScopeTo.SingleScopeTo()
+const val defaultScope2 = ""
 
 fun ScopeTo.with(value: String = "") = when (this) {
     is ScopeTo.CompositeScopeTo -> copy(value = value)
@@ -117,6 +118,8 @@ data class MockEvent(
         ScopeTo.SingleScopeTo(IdSingleScope::class, id),
         ScopeTo.SingleScopeTo(IdSingleScope::class, id2),
     )
+
+    override fun getScopes2(): List<String> = listOf(id, id2)
 }
 
 /**

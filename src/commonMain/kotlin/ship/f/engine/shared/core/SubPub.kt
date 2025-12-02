@@ -9,6 +9,7 @@ import kotlinx.coroutines.launch
 import kotlinx.datetime.Clock
 import kotlinx.serialization.SerialName
 import kotlinx.serialization.Serializable
+import ship.f.engine.shared.core.Engine.getEventsV2
 import ship.f.engine.shared.core.ScopeTo.SingleScopeTo
 import ship.f.engine.shared.core.ScopedEvent.AuthEvent
 import kotlin.reflect.KClass
@@ -170,6 +171,14 @@ abstract class SubPub<S : State>(
         return expectation
     }
 
+    // TODO like publish but does not call handlers, should be used for intermediary values but publish should always be called afterwards
+    suspend fun store(
+        events: List<E>,
+        reason: String = "Please Give a Reason for readability"
+    ) {
+        events.forEach { engine.publish(it, reason, blocking = false, send = false) }
+    }
+
     // Pair<EClass, String?> is only used to stop multiple of the same item being added.
     // Ultimately, we will still iterate through the entire list
 
@@ -216,6 +225,9 @@ abstract class SubPub<S : State>(
             getScopedEvent(event, it.first)
         }
 
+    fun <E : ScopedEvent> getScopedEvents2(event: KClass<out E>, scope: List<String> = listOf(defaultScope2)): List<E> =
+        getEventsV2(event, scope)
+
     private fun <E : ScopedEvent> getScopedEvent(event: KClass<out E>, scope: ScopeTo): E? =
         engine.getEvent(event, scope)
 
@@ -249,6 +261,7 @@ abstract class SubPub<S : State>(
 
     private fun checkIfReady(runIfNotReady: () -> Unit = {}) = requiredEvents.none {
         getEvent(it) == null
+        gev2(klass = it).firstOrNull() == null
     }.also {
         if (!it) {
             runIfNotReady()
@@ -282,10 +295,35 @@ abstract class SubPub<S : State>(
         }
     }
 
+    fun <E1 : E> SubPub<S>.gev2(
+        klass: KClass<E1>,
+        scopes: List<String> = listOf(defaultScope2),
+        nFunc: () -> Unit = {},
+    ) = getScopedEvents2(klass, scopes).also { if (it.isEmpty()) nFunc() }
+
+    inline fun <reified E1 : E> SubPub<S>.gev2(
+        scopes: List<String> = listOf(defaultScope2),
+        nFunc: () -> Unit = {},
+    ) = getScopedEvents2(E1::class, scopes).also { if (it.isEmpty()) nFunc() }
+
     inline fun <reified E1 : E> SubPub<S>.ges(
         scopeTo: ScopeTo? = null,
         nFunc: () -> Unit = {},
     ) = getScopedEvents(E1::class, scopeTo).let { scopedEvents ->
+        (if (scopedEvents.isNotEmpty()) {
+            if (scopeTo != null) {
+                scopedEvents.filter { it.getScopes().contains(scopeTo) }
+            } else {
+                scopedEvents
+            }
+        } else emptyList()).also { if (it.isEmpty()) nFunc() }
+    }
+
+    fun <E1 : E> SubPub<S>.ges(
+        klass: KClass<E1>,
+        scopeTo: ScopeTo? = null,
+        nFunc: () -> Unit = {},
+    ) = getScopedEvents(klass, scopeTo).let { scopedEvents ->
         (if (scopedEvents.isNotEmpty()) {
             if (scopeTo != null) {
                 scopedEvents.filter { it.getScopes().contains(scopeTo) }

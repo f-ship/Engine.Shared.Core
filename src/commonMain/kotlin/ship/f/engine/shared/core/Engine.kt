@@ -72,6 +72,26 @@ object Engine {
         return c as? E
     }
 
+    fun <E : ScopedEvent> getEventV2(
+        event: KClass<E>,
+        scope: List<String>,
+    ): E? {
+        val a = config.eventMiddleWareConfig[event]!!
+        val b = a.eventConfigs2[scope.joinToString("/")]
+        val c = b?.event
+        return c as? E
+    }
+
+    fun <E : ScopedEvent> getEventsV2(
+        event: KClass<E>,
+        scope: List<String>,
+    ): List<E> {
+        val regex = scope.joinToString("/").replace("*", "[^/]+").toRegex()
+        val a = config.eventMiddleWareConfig[event]!!
+        val b = a.eventConfigs2.filter { regex.matches(it.key) }.mapNotNull { it.value.event }
+        return b as? List<E> ?: emptyList()
+    }
+
     fun init(config: Config, initialEvents: List<E> = listOf()) {
         this.config = config
         config.subPubConfig.values
@@ -90,7 +110,7 @@ object Engine {
         return config.eventMiddleWareConfig[event]?.interceptor(this, scope)
     }
 
-    suspend fun publish(event: E, reason: String, blocking: Boolean = false) { // Do something with reason
+    suspend fun publish(event: E, reason: String, blocking: Boolean = false, send: Boolean = true) { // Do something with reason
         sduiLog("Publishing $event because $reason", tag = "Engine")
         val middleWares = config.eventMiddleWareConfig[event::class]!!.middleWareConfigs.map { it.listener }
         var computedEvent = event
@@ -98,11 +118,33 @@ object Engine {
             computedEvent = middleWare(computedEvent) ?: computedEvent
         }
 
-        (computedEvent.getScopes() + listOf(defaultScope)).forEach { scope ->
-            val eventConfigs = config.eventMiddleWareConfig[computedEvent::class]!!.eventConfigs
-            eventConfigs[scope] = eventConfigs[scope]?.copy(event = computedEvent)
-                ?: EventConfig(computedEvent, setOf())
-            eventConfigs[scope]!!.listeners.forEach {
+//        Scopes Version 1
+//        (computedEvent.getScopes() + listOf(defaultScope)).forEach { scope ->
+//            val eventConfigs = config.eventMiddleWareConfig[computedEvent::class]!!.eventConfigs
+//            eventConfigs[scope] = eventConfigs[scope]?.copy(event = computedEvent)
+//                ?: EventConfig(computedEvent, setOf())
+//            eventConfigs[scope]!!.listeners.forEach {
+//                if (blocking) {
+//                    it.lastEvent = computedEvent
+//                    it.executeEvent()
+//                } else {
+//                    queue.add {
+//                        it.lastEvent = computedEvent
+//                        it.executeEvent()
+//                    }
+//                }
+//            }
+//        }
+
+
+        // Scopes Version 2
+        val scope = computedEvent.getScopes2().joinToString("/")
+        val eventConfigs = config.eventMiddleWareConfig[computedEvent::class]!!.eventConfigs2
+        eventConfigs[scope] = eventConfigs[scope]?.copy(event = computedEvent)
+            ?: EventConfig(computedEvent, setOf())
+        eventConfigs[scope]!!.listeners.forEach {
+            sduiLog("Now Sending ${computedEvent::class} to $scope", tag = "EngineX")
+            if (send) {
                 if (blocking) {
                     it.lastEvent = computedEvent
                     it.executeEvent()
@@ -114,6 +156,7 @@ object Engine {
                 }
             }
         }
+
         queue.launchRunners()
     }
 
@@ -181,7 +224,8 @@ data class SubPubConfig(
 @Serializable
 data class EventMiddleWareConfig(
     val eventConfigs: MutableMap<ScopeTo, EventConfig> = mutableMapOf(),
-    val interceptor: Engine.(ScopeTo) -> E? = { null },
+    val eventConfigs2: MutableMap<String, EventConfig> = mutableMapOf(),
+    val interceptor: Engine.(ScopeTo) -> E? = { null }, // TODO implement in the same way as middleWareConfigs, always run on ge and le
     val middleWareConfigs: List<MiddleWareConfig> = listOf(), // For now Assume all middlewares are created at init
 )
 
