@@ -306,6 +306,11 @@ abstract class SubPub<S : State>(
         nFunc: () -> Unit = {},
     ) = getScopedEvents2(E1::class, scopes).also { if (it.isEmpty()) nFunc() }
 
+    inline fun <reified E1 : E> SubPub<S>.gev2f(
+        scopes: List<String> = listOf(defaultScope2),
+        nFunc: () -> E1 = { error("Not implemented the nFunc and no events found") },
+    ) = getScopedEvents2(E1::class, scopes).let { it.ifEmpty { listOf(nFunc()) } }
+
     inline fun <reified E1 : E> SubPub<S>.ges(
         scopeTo: ScopeTo? = null,
         nFunc: () -> Unit = {},

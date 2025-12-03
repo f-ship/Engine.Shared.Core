@@ -35,5 +35,5 @@ abstract class ScopedEvent {
 @SerialName("Event")
 abstract class Event : ScopedEvent() {
     override fun getScopes(): List<ScopeTo> = emptyList()
-    override fun getScopes2(): List<String> = emptyList()
+    override fun getScopes2(): List<String> = listOf(defaultScope2) // TODO no one should care about the name for now
 }
