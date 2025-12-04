@@ -88,7 +88,7 @@ object Engine {
     ): List<E> {
         val regex = scope.joinToString("/").replace("*", "[^/]+").toRegex()
         sduiLog(config.eventMiddleWareConfig.keys, event, tag = "EngineX")
-        val a = config.eventMiddleWareConfig[event]!!
+        val a = config.eventMiddleWareConfig[event] ?: error("$event does not exist in event middle ware config")
         val b = a.eventConfigs2.filter { regex.matches(it.key) }.mapNotNull { it.value.event }
         return b as? List<E> ?: emptyList()
     }
