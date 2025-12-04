@@ -11,7 +11,7 @@ abstract class Dependency : SubPub<NoState>() { // While a dependency inherits f
 
     override fun initState(): NoState = NoState()
 
-    override suspend fun onEvent() {
+    override suspend fun ScopedEvent.onEvent() {
 
     }
 }

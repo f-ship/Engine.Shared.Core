@@ -147,11 +147,11 @@ object Engine {
             if (send) {
                 if (blocking) {
                     it.lastEvent = computedEvent
-                    it.executeEvent()
+                    it.executeEvent(computedEvent)
                 } else {
                     queue.add {
                         it.lastEvent = computedEvent
-                        it.executeEvent()
+                        it.executeEvent(computedEvent)
                     }
                 }
             }
