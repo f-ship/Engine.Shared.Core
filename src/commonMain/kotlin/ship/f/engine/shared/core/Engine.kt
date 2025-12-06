@@ -87,7 +87,6 @@ object Engine {
         scope: List<String>,
     ): List<E> {
         val regex = scope.joinToString("/").replace("*", "[^/]+").toRegex()
-        sduiLog(config.eventMiddleWareConfig.keys, event, tag = "EngineX")
         val a = config.eventMiddleWareConfig[event] ?: error("$event does not exist in event middle ware config")
         val b = a.eventConfigs2.filter { regex.matches(it.key) }.mapNotNull { it.value.event }
         return b as? List<E> ?: emptyList()
@@ -119,29 +118,13 @@ object Engine {
             computedEvent = middleWare(computedEvent) ?: computedEvent
         }
 
-//        Scopes Version 1
-//        (computedEvent.getScopes() + listOf(defaultScope)).forEach { scope ->
-//            val eventConfigs = config.eventMiddleWareConfig[computedEvent::class]!!.eventConfigs
-//            eventConfigs[scope] = eventConfigs[scope]?.copy(event = computedEvent)
-//                ?: EventConfig(computedEvent, setOf())
-//            eventConfigs[scope]!!.listeners.forEach {
-//                if (blocking) {
-//                    it.lastEvent = computedEvent
-//                    it.executeEvent()
-//                } else {
-//                    queue.add {
-//                        it.lastEvent = computedEvent
-//                        it.executeEvent()
-//                    }
-//                }
-//            }
-//        }
-
         // Scopes Version 2
         val scope = computedEvent.getScopes2().joinToString("/")
         val eventConfigs = config.eventMiddleWareConfig[computedEvent::class]!!.eventConfigs2
+
         eventConfigs[scope] = eventConfigs[scope]?.copy(event = computedEvent)
             ?: EventConfig(computedEvent, eventConfigs[defaultScope2]!!.listeners) // TODO a bit hacky but subpubs should automatically get all scopes
+
         eventConfigs[scope]!!.listeners.forEach {
             sduiLog("Now Sending ${computedEvent::class} to $scope", tag = "EngineX")
             if (send) {

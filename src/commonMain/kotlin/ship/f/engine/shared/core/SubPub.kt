@@ -12,6 +12,7 @@ import kotlinx.serialization.Serializable
 import ship.f.engine.shared.core.Engine.getEventsV2
 import ship.f.engine.shared.core.ScopeTo.SingleScopeTo
 import ship.f.engine.shared.core.ScopedEvent.AuthEvent
+import ship.f.engine.shared.utils.serverdrivenui2.ext.sduiLog
 import kotlin.reflect.KClass
 
 @Serializable
@@ -269,6 +270,7 @@ abstract class SubPub<S : State>(
         nFunc: () -> E1 = { error("Not implemented the nFunc and no events found") },
     ) = getScopedEvents(E1::class, scopes).let { scopedEvents ->
         (scopedEvents.ifEmpty { emptyList() }.firstOrNull() ?: nFunc()).also {
+            sduiLog(it, tag = "EngineX > getOrComputeScopedEvent")
             coroutineScope.launch { publish(it) }
         }
     }
