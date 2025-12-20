@@ -21,7 +21,7 @@ object Engine {
         private var currentSize = 0
         private val availableCores = getAvailableCores()
         private val poolMultiplier = 1
-        var poolSize = availableCores * poolMultiplier
+        var poolSize = maxOf(availableCores * poolMultiplier, 8)
         private val queueScope = CoroutineScope(Dispatchers.Default.limitedParallelism(poolSize))
 
         suspend fun add(v: suspend () -> Unit) = lock.withLock { data.add(v) }
@@ -33,6 +33,7 @@ object Engine {
         }
 
         suspend fun launchRunners() {
+            sduiLog("Launching runners with current pool $currentSize with $availableCores and $poolMultiplier poolMultiplier", tag = "EngineX")
             while (currentSize < poolSize) {
                 val popped = pop()
                 if (popped != null) {
