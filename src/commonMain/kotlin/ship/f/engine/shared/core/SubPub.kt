@@ -270,7 +270,6 @@ abstract class SubPub<S : State>(
         nFunc: () -> E1 = { error("Not implemented the nFunc and no events found") },
     ) = getScopedEvents(E1::class, scopes).let { scopedEvents ->
         (scopedEvents.ifEmpty { emptyList() }.firstOrNull() ?: nFunc()).also {
-            sduiLog(it, tag = "EngineX > getOrComputeScopedEvent")
             coroutineScope.launch { publish(it) }
         }
     }
