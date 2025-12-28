@@ -112,7 +112,7 @@ object Engine {
     }
 
     suspend fun publish(event: E, reason: String, blocking: Boolean = false, send: Boolean = true) { // Do something with reason
-        sduiLog("Publishing $event because $reason", tag = "Engine")
+        sduiLog("Publishing ${event::class} because $reason", tag = "Engine")
         val middleWares = config.eventMiddleWareConfig[event::class]!!.middleWareConfigs.map { it.listener }
         var computedEvent = event
         middleWares.forEach { middleWare ->
