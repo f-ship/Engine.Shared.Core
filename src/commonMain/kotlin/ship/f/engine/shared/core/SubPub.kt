@@ -12,13 +12,12 @@ import kotlinx.serialization.Serializable
 import ship.f.engine.shared.core.Engine.getEventsV2
 import ship.f.engine.shared.core.ScopeTo.SingleScopeTo
 import ship.f.engine.shared.core.ScopedEvent.AuthEvent
-import ship.f.engine.shared.utils.serverdrivenui2.ext.sduiLog
 import kotlin.reflect.KClass
 
 @Serializable
 abstract class SubPub<S : State>(
     private val requiredEvents: Set<EClass> = setOf(),
-    val nonRequiredEvents: Set<EClass> = setOf()
+    open val nonRequiredEvents: Set<EClass> = setOf()
 ) {
     private val uid = "${this::class.simpleName}:${Clock.System.now()}"
 

@@ -93,7 +93,10 @@ object Engine {
         return b as? List<E> ?: emptyList()
     }
 
-    fun init(config: Config, initialEvents: List<E> = listOf()) {
+    fun init(
+        config: Config,
+        initialEvents: List<E> = listOf()
+    ) {
         this.config = config
         config.subPubConfig.values
             .filter { it.isStartUp }
