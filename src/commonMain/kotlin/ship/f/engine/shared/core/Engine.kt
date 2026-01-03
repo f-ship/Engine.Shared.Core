@@ -35,10 +35,17 @@ object Engine {
         suspend fun launchRunners() {
             sduiLog("Launching runners with current pool $currentSize with $availableCores and $poolMultiplier poolMultiplier", tag = "EngineX")
             while (currentSize < poolSize) {
+                sduiLog("Launching runner", tag = "EngineX > While")
                 val popped = pop()
                 if (popped != null) {
+                    sduiLog("Popped runner", tag = "EngineX > While > Popped")
                     queueScope.launch {
-                        popped()
+                        sduiLog("Launching runner in queueScope", tag = "EngineX > While > Popped > Launch")
+                        try {
+                            popped()
+                        } catch (e: Exception) {
+                            sduiLog("Error in runner", e, tag = "EngineX > While > Popped > Launch > Error")
+                        }
                         lock.withLock { currentSize-- }
                     }
                 } else break
