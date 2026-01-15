@@ -15,7 +15,6 @@ import kotlin.reflect.KClass
 object Engine {
 
     class Queue {
-
         private val lock = Mutex()
         private val data = mutableListOf<suspend () -> Unit>()
         private var currentSize = 0
@@ -33,14 +32,10 @@ object Engine {
         }
 
         suspend fun launchRunners() {
-            sduiLog("Launching runners with current pool $currentSize with $availableCores and $poolMultiplier poolMultiplier", tag = "EngineX")
             while (currentSize < poolSize) {
-                sduiLog("Launching runner", tag = "EngineX > While")
                 val popped = pop()
                 if (popped != null) {
-                    sduiLog("Popped runner", tag = "EngineX > While > Popped")
                     queueScope.launch {
-                        sduiLog("Launching runner in queueScope", tag = "EngineX > While > Popped > Launch")
                         try {
                             popped()
                         } catch (e: Exception) {
@@ -54,8 +49,6 @@ object Engine {
     }
 
     private var config = Config()
-    var hasBeenInit = false
-
 
     val engineScope = CoroutineScope(Dispatchers.Default)
     val queue = Queue()
@@ -70,24 +63,14 @@ object Engine {
         queue.poolSize = multiplier
     }
 
-    fun <E : ScopedEvent> getEvent(
-        event: KClass<E>,
-        scope: ScopeTo
-    ): E? {
-        val a = config.eventMiddleWareConfig[event]!! // All events should be configured before engine is ran
-        val b = a.eventConfigs[scope]
-        val c = b?.event
-        return c as? E
-    }
-
     fun <E : ScopedEvent> getEventV2(
-        event: KClass<E>,
+        eventClass: KClass<E>,
         scope: List<String>,
     ): E? {
-        val a = config.eventMiddleWareConfig[event]!!
-        val b = a.eventConfigs2[scope.joinToString("/")]
-        val c = b?.event
-        return c as? E
+        val eventMiddleWareConfig = config.eventMiddleWareConfigs[eventClass]!!
+        val eventConfig = eventMiddleWareConfig.eventConfigs2[scope.joinToString("/")]
+        val event = eventConfig?.event
+        return event as? E
     }
 
     fun <E : ScopedEvent> getEventsV2(
@@ -95,9 +78,9 @@ object Engine {
         scope: List<String>,
     ): List<E> {
         val regex = scope.joinToString("/").replace("*", "[^/]+").toRegex()
-        val a = config.eventMiddleWareConfig[event] ?: error("$event does not exist in event middle ware config")
-        val b = a.eventConfigs2.filter { regex.matches(it.key) }.mapNotNull { it.value.event }
-        return b as? List<E> ?: emptyList()
+        val eventMiddleWareConfig = config.eventMiddleWareConfigs[event] ?: error("$event does not exist in event middle ware config")
+        val eventConfig = eventMiddleWareConfig.eventConfigs2.filter { regex.matches(it.key) }.mapNotNull { it.value.event }
+        return eventConfig as? List<E> ?: emptyList()
     }
 
     fun init(
@@ -105,7 +88,7 @@ object Engine {
         initialEvents: List<E> = listOf()
     ) {
         this.config = config
-        config.subPubConfig.values
+        config.subPubConfigs.values
             .filter { it.isStartUp }
             .forEach {
                 it.subPubs.values.forEach { sp ->
@@ -117,27 +100,23 @@ object Engine {
         }
     }
 
-    fun runInterceptor(event: EClass, scope: ScopeTo): E? {
-        return config.eventMiddleWareConfig[event]?.interceptor(this, scope)
-    }
-
     suspend fun publish(event: E, reason: String, blocking: Boolean = false, send: Boolean = true) { // Do something with reason
-        sduiLog("Publishing ${event::class} because $reason", tag = "Engine")
-        val middleWares = config.eventMiddleWareConfig[event::class]!!.middleWareConfigs.map { it.listener }
+        engineScope.launch {
+            sduiLog("Publishing ${event::class} because $reason", tag = "Engine")
+        }
+        val middleWares = config.eventMiddleWareConfigs[event::class]!!.middleWareConfigs.map { it.listener }
         var computedEvent = event
         middleWares.forEach { middleWare ->
             computedEvent = middleWare(computedEvent) ?: computedEvent
         }
 
-        // Scopes Version 2
         val scope = computedEvent.getScopes2().joinToString("/")
-        val eventConfigs = config.eventMiddleWareConfig[computedEvent::class]!!.eventConfigs2
+        val eventConfigs = config.eventMiddleWareConfigs[computedEvent::class]!!.eventConfigs2
 
         eventConfigs[scope] = eventConfigs[scope]?.copy(event = computedEvent)
             ?: EventConfig(computedEvent, eventConfigs[defaultScope2]!!.listeners) // TODO a bit hacky but subpubs should automatically get all scopes
 
         eventConfigs[scope]!!.listeners.forEach {
-            sduiLog("Now Sending ${computedEvent::class} to $scope", tag = "EngineX")
             if (send) {
                 if (blocking) {
                     it.lastEvent = computedEvent
@@ -154,34 +133,21 @@ object Engine {
         queue.launchRunners()
     }
 
-    fun addScopes(subPub: SP, scope: ScopeTo, events: List<EClass>) {
-        events.forEach {
-            val eventConfigs = config.eventMiddleWareConfig[it]!!.eventConfigs
-            val listeners = eventConfigs[scope]?.listeners ?: setOf()
-            eventConfigs[scope] =
-                eventConfigs[scope]?.copy(listeners = listeners + listOf(subPub)) ?: EventConfig(
-                    event = null,
-                    listeners = listeners
-                )
-        }
-    }
-
     fun <SP : SubPub<out State>> getSubPub(subPubClass: KClass<out SP>, scope: ScopeTo): SP {
-        val a = config.subPubConfig[subPubClass]!!
-        val b = (a.subPubs[scope] ?: a.build()).apply { tryInit() }
-        addScopes(b, scope, b.events.toList())
-        return b as SP
+        val subPubConfig = config.subPubConfigs[subPubClass]!!
+        val subPub = (subPubConfig.subPubs[scope] ?: subPubConfig.build()).apply { tryInit() }
+        return subPub as SP
     }
 
-    fun <D : Dependency> getDependency(dependency: KClass<out D>, scope: ScopeTo): D {
-        val a = config.dependencyConfig[dependency]!!
-        val b = a.dependencies[scope] ?: a.build(scope).apply {
+    fun <D : Dependency> getDependency(dependencyClass: KClass<out D>, scope: ScopeTo): D {
+        val dependencyConfig = config.dependencyConfigs[dependencyClass]!!
+        val dependency = dependencyConfig.dependencies[scope] ?: dependencyConfig.build(scope).apply {
             init(scope)
-            val c = a.copy(dependencies = a.dependencies + mapOf(scope to this))
-            val d = config.dependencyConfig + mapOf(dependency to c)
-            config.copy(dependencyConfig = d)
+            val updatedDependencyConfig = dependencyConfig.copy(dependencies = dependencyConfig.dependencies + mapOf(scope to this))
+            val updatedDependencyConfigs = config.dependencyConfigs + mapOf(dependencyClass to updatedDependencyConfig)
+            config.copy(dependencyConfigs = updatedDependencyConfigs)
         }
-        return b as D
+        return dependency as D
     }
 
     inline fun <reified D : Dependency> get(scope: ScopeTo = defaultScope): D = getDependency(D::class, scope)
@@ -192,7 +158,7 @@ object Engine {
         dependencyInstance: D,
     ) {
         config = config.copy(
-            dependencyConfig = config.dependencyConfig + mapOf(
+            dependencyConfigs = config.dependencyConfigs + mapOf(
                 dependency to DependencyConfig(
                     build = { dependencyInstance },
                 )
@@ -203,9 +169,9 @@ object Engine {
 
 @Serializable
 data class Config(
-    val subPubConfig: Map<SPClass, SubPubConfig> = mapOf(),
-    val eventMiddleWareConfig: Map<EClass, EventMiddleWareConfig> = mapOf(),
-    val dependencyConfig: Map<DClass, DependencyConfig> = mapOf(), // TODO Should have a way to make arbitrary independence that don't implement Dependency
+    val subPubConfigs: Map<SPClass, SubPubConfig> = mapOf(),
+    val eventMiddleWareConfigs: Map<EClass, EventMiddleWareConfig> = mapOf(),
+    val dependencyConfigs: Map<DClass, DependencyConfig> = mapOf(), // TODO Should have a way to make arbitrary independence that don't implement Dependency
 )
 
 @Serializable
@@ -251,5 +217,3 @@ typealias EClass = KClass<out ScopedEvent>
 
 typealias D = Dependency
 typealias DClass = KClass<out D>
-
-typealias Publish = (E, String?, String) -> Unit

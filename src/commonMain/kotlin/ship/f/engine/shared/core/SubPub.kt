@@ -10,8 +10,6 @@ import kotlinx.datetime.Clock
 import kotlinx.serialization.SerialName
 import kotlinx.serialization.Serializable
 import ship.f.engine.shared.core.Engine.getEventsV2
-import ship.f.engine.shared.core.ScopeTo.SingleScopeTo
-import ship.f.engine.shared.core.ScopedEvent.AuthEvent
 import kotlin.reflect.KClass
 
 @Serializable
@@ -21,7 +19,6 @@ abstract class SubPub<S : State>(
 ) {
     private val uid = "${this::class.simpleName}:${Clock.System.now()}"
 
-    private var scopes: List<Pair<ScopeTo, List<EClass>?>> = listOf(Pair(SingleScopeTo(), null)) // Change to
     val engine: Engine = Engine
     val events = requiredEvents + nonRequiredEvents
     var lastEvent: E = ScopedEvent.InitialEvent(uid)
@@ -62,7 +59,7 @@ abstract class SubPub<S : State>(
                  */
                 if (updatedAllList.all { it.second }) {
                     updatedAllList.forEach { expectation ->
-                        val event = getEvent(expectation.first.expectedEvent)!!
+                        val event = getEvent(expectation.first.expectedEvent)!! // TODO this use of get event is probably not great
                         expectation.first.runOn(event)
                         queuedEvents.add(event)
                     }
@@ -109,11 +106,6 @@ abstract class SubPub<S : State>(
         val eventClass: KClass<T>,
         val flow: FlowCollector<T>? = null
     )
-
-    fun <K, V> MutableMap<K, List<V>>.safeAdd(key: K, value: V) {
-        if (this[key] == null) listOf(value)
-        else this[key] = this[key]!! + listOf(value)
-    }
 
     @Serializable
     @SerialName("ExpType")
@@ -178,9 +170,6 @@ abstract class SubPub<S : State>(
     ) {
         events.forEach { engine.publish(it, reason, blocking = false, send = false) }
     }
-
-    // Pair<EClass, String?> is only used to stop multiple of the same item being added.
-    // Ultimately, we will still iterate through the entire list
 
     fun Expectation.onceAny(vararg expectationBuilders: ExpectationBuilder<out ScopedEvent>) {
         val currentExpectation = linkedExpectations[Pair(emittedEvent::class, key)]
@@ -274,7 +263,6 @@ abstract class SubPub<S : State>(
     }
 
     inline fun <reified E1 : E> ScopedEvent.le(func: (E1) -> Unit) {
-        if (E1::class == AuthEvent::class && this::class.simpleName == "CommSubPub") println("Now calling le E for $lastEvent")
         val le = this
         if (le is E1) func(le)
     }
