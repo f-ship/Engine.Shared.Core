@@ -13,7 +13,6 @@ data class ToastEvent(
     val toastType: ToastType = ToastType.Warning,
     val key: String? = null, // to ensure we can send repeat toasts
 ) : ScopedEvent() {
-    override fun getScopes(): List<ScopeTo> = listOf(ScopeTo.SingleScopeTo(DefaultSingleScope::class, "UI"))
     override fun getScopes2(): List<String> = listOf()
 
     @Serializable
