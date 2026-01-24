@@ -2,6 +2,7 @@ package ship.f.engine.shared.core
 
 import kotlinx.serialization.SerialName
 import kotlinx.serialization.Serializable
+import ship.f.engine.shared.utils.serverdrivenui2.config.state.models.Id2
 
 @Serializable
 @SerialName("ScopedEvent")
@@ -35,8 +36,7 @@ abstract class ScopedEvent {
     @SerialName("ViewRequest5")
     data class ViewRequest6(
         override val requesterId: String,
-        val name: String,
-        val scope: String? = null,
+        val id: Id2.MetaId2,
     ) : RequesterScopedEvent() {
         override fun getScopes2(): List<String> = listOf(defaultScope2)
     }
