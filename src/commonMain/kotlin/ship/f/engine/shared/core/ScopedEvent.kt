@@ -26,6 +26,31 @@ abstract class ScopedEvent {
     }
 
     @Serializable
+    @SerialName("RequesterScopedEvent")
+    abstract class RequesterScopedEvent : ScopedEvent()  {
+        abstract val requesterId: String
+    }
+
+    @Serializable
+    @SerialName("ViewRequest5")
+    data class ViewRequest6(
+        override val requesterId: String,
+        val name: String,
+        val scope: String? = null,
+    ) : RequesterScopedEvent() {
+        override fun getScopes2(): List<String> = listOf(defaultScope2)
+    }
+
+    abstract class DomainEvent6 : ScopedEvent() {
+        abstract val viewRequest: ViewRequest6
+        override fun getScopes2(): List<String> = listOf(defaultScope2)
+    }
+
+    data class StaticVoid6(
+        override val viewRequest: ViewRequest6
+    ) : DomainEvent6()
+
+    @Serializable
     @SerialName("NetworkConnectivityEvent")
     data class NetworkConnectivityEvent(
         val isConnected: Boolean

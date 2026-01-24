@@ -23,6 +23,8 @@ abstract class SubPub<S : State>(
     val events = requiredEvents + nonRequiredEvents
     var lastEvent: E = ScopedEvent.InitialEvent(uid)
     lateinit var state: MutableState<S>
+
+    val directState get() = state.value
     val isReady: MutableState<Boolean> = mutableStateOf(false)
     private val idempotentMap: MutableMap<EClass, MutableSet<String>> = mutableMapOf()
     val coroutineScope: CoroutineScope = engine.engineScope
