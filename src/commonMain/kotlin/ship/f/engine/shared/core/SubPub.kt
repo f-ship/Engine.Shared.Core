@@ -253,8 +253,6 @@ abstract class SubPub<S : State>(
         nFunc: () -> E1 = { error("Not implemented the nFunc and no events found") },
     ) = getScopedEvents(E1::class, scopes).let { it.ifEmpty { listOf(nFunc()) } }
 
-
-
     inline fun <reified E1 : E> SubPub<S>.getOrComputeScopedEvent(
         scopes: List<String> = listOf(defaultScope2),
         nFunc: () -> E1 = { error("Not implemented the nFunc and no events found") },

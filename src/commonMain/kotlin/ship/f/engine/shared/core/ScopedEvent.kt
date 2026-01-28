@@ -37,6 +37,8 @@ abstract class ScopedEvent {
     data class ViewRequest6(
         override val requesterId: String,
         val id: Id2.MetaId2,
+        val ctx: Map<String, String> = mapOf(), // TODO to merge into something better at some point
+        val listCtx: Map<String, List<String>> = mapOf(),
     ) : RequesterScopedEvent() {
         override fun getScopes2(): List<String> = listOf(defaultScope2)
     }
