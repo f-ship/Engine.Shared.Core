@@ -34,23 +34,59 @@ abstract class ScopedEvent {
 
     @Serializable
     @SerialName("ViewRequest5")
-    data class ViewRequest6(
-        override val requesterId: String,
-        val id: Id2.MetaId2,
-        val ctx: Map<String, String> = mapOf(), // TODO to merge into something better at some point
-        val listCtx: Map<String, List<String>> = mapOf(),
-    ) : RequesterScopedEvent() {
+    sealed class ViewRequest6 : RequesterScopedEvent() {
+        abstract val id: Id2.MetaId2
+        abstract val ctx: Map<String, String> // TODO to merge into something better at some point
+        abstract val listCtx: Map<String, List<String>>
         override fun getScopes2(): List<String> = listOf(defaultScope2)
+        abstract fun plus(key: String, value: String): ViewRequest6
+        abstract fun plus(key: String, value: List<String>): ViewRequest6
+    }
+
+    @Serializable
+    @SerialName("InitiatedViewRequest6")
+    data class InitiatedViewRequest6(
+        override val id: Id2.MetaId2,
+        override val ctx: Map<String, String>,
+        override val listCtx: Map<String, List<String>>,
+        override val requesterId: String,
+        val requestId: String,
+        val domainId: String,
+        val domainIds: List<String>,
+    ) : ViewRequest6() {
+        override fun plus(key: String, value: String) = copy(ctx = ctx + (key to value))
+        override fun plus(key: String, value: List<String>) = copy(listCtx = listCtx + (key to value))
+    }
+
+    @Serializable
+    @SerialName("UninitiatedViewRequest6")
+    data class UninitiatedViewRequest6(
+        override val id: Id2.MetaId2,
+        override val ctx: Map<String, String> = mapOf(),
+        override val listCtx: Map<String, List<String>> = mapOf(),
+        override val requesterId: String,
+    ) : ViewRequest6() {
+        override fun plus(key: String, value: String) = copy(ctx = ctx + (key to value))
+        override fun plus(key: String, value: List<String>) = copy(listCtx = listCtx + (key to value))
     }
 
     abstract class DomainEvent6 : ScopedEvent() {
-        abstract val viewRequest: ViewRequest6
+        abstract val viewRequest: InitiatedViewRequest6
+        abstract val domainId: String
+        override fun getScopes2(): List<String> = listOf(defaultScope2)
+    }
+
+    abstract class FailedDomainEvent6 : ScopedEvent() {
+        abstract val viewRequest: InitiatedViewRequest6
+        abstract val domainId: String
         override fun getScopes2(): List<String> = listOf(defaultScope2)
     }
 
     data class StaticVoid6(
-        override val viewRequest: ViewRequest6
-    ) : DomainEvent6()
+        override val viewRequest: InitiatedViewRequest6
+    ) : DomainEvent6() {
+        override val domainId: String = viewRequest.id.name + viewRequest.id.scope
+    }
 
     @Serializable
     @SerialName("NetworkConnectivityEvent")
