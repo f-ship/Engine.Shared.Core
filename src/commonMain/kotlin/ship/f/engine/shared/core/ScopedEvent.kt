@@ -21,10 +21,20 @@ abstract class ScopedEvent {
         val fcmToken: String? = null,
         val accessToken: String? = null,
         val refreshToken: String? = null,
-        val eventResources: List<String> = listOf()
+        val eventResources: List<String> = listOf(),
     ) : ScopedEvent() {
         override fun getScopes2(): List<String> = listOf(defaultScope2) // TODO no one should care about the name for now
     }
+
+    @Serializable
+    @SerialName("DeviceConfig")
+    data class DeviceConfig(
+        val deviceId: String = "",
+        val persistLogin: Boolean = false,
+        val linkedinVerification: Boolean = true,
+        val showProfile: Boolean = true,
+        val showInterests: Boolean = true,
+    )
 
     @Serializable
     @SerialName("RequesterScopedEvent")
