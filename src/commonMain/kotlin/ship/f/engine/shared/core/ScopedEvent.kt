@@ -27,8 +27,8 @@ abstract class ScopedEvent {
     }
 
     @Serializable
-    @SerialName("DeviceConfig")
-    data class DeviceConfig(
+    @SerialName("Config")
+    data class Config(
         val deviceId: String = "",
         val persistLogin: Boolean = false,
         val linkedinVerification: Boolean = true,

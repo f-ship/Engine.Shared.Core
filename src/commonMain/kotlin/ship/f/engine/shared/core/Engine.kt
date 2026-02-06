@@ -39,7 +39,7 @@ object Engine {
                         try {
                             popped()
                         } catch (e: Exception) {
-                            sduiLog("Error in runner", e, tag = "EngineX > While > Popped > Launch > Error")
+                            sduiLog("Error in runner", e, e.printStackTrace(), tag = "EngineX > While > Popped > Launch > Error")
                         }
                         lock.withLock { currentSize-- }
                     }
