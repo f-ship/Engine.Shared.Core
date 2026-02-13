@@ -57,6 +57,7 @@ abstract class ScopedEvent {
         sealed class InitiatedViewRequest6 : ViewRequest6() {
             abstract val requestId: String
             abstract val domainIds: List<String>
+            fun toUnitiatedViewRequest6() = UninitiatedViewRequest6(id = id, requesterId = requesterId, listCtx = listCtx, ctx = ctx)
         }
     }
 
