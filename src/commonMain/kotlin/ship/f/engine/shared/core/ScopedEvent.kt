@@ -2,6 +2,7 @@ package ship.f.engine.shared.core
 
 import kotlinx.serialization.SerialName
 import kotlinx.serialization.Serializable
+import ship.f.engine.shared.core.ScopedEvent.ViewRequest6.InitiatedViewRequest6
 import ship.f.engine.shared.utils.serverdrivenui2.config.state.models.Id2
 import ship.f.engine.shared.utils.serverdrivenui2.config.state.models.Id2.Companion.NONE
 
@@ -70,7 +71,7 @@ abstract class ScopedEvent {
         override val requestId: String,
         override val domainIds: List<String>,
         val domainId: String,
-    ) : ViewRequest6.InitiatedViewRequest6() {
+    ) : InitiatedViewRequest6() {
         override fun plus(key: String, value: String) = copy(ctx = ctx + (key to value))
         override fun plus(key: String, value: List<String>) = copy(listCtx = listCtx + (key to value))
     }
@@ -84,7 +85,7 @@ abstract class ScopedEvent {
         override val requesterId: String,
         override val requestId: String,
         override val domainIds: List<String>,
-    ) : ViewRequest6.InitiatedViewRequest6() {
+    ) : InitiatedViewRequest6() {
         override fun plus(key: String, value: String) = copy(ctx = ctx + (key to value))
         override fun plus(key: String, value: List<String>) = copy(listCtx = listCtx + (key to value))
     }
@@ -119,7 +120,7 @@ abstract class ScopedEvent {
         override val domainId: String = viewRequest.id.name + viewRequest.id.scope
 
         companion object {
-            fun ViewRequest6.InitiatedViewRequest6.toComputingViewRequest6(domainId: String = NONE) = DomainViewRequest6(
+            fun InitiatedViewRequest6.toComputingViewRequest6(domainId: String = NONE) = DomainViewRequest6(
                 id = id,
                 ctx = ctx,
                 listCtx = listCtx,
