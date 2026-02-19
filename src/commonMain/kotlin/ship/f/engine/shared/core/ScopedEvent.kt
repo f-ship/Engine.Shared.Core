@@ -17,6 +17,10 @@ abstract class ScopedEvent {
     }
 
     @Serializable
+    @SerialName("Nuke")
+    data class Nuke(val name: String) : Event()
+
+    @Serializable
     @SerialName("AuthEvent")
     data class AuthEvent(
         val userId: String? = null,
