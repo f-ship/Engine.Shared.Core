@@ -103,6 +103,12 @@ abstract class ScopedEvent {
         override fun plus(key: String, value: List<String>) = copy(listCtx = listCtx + (key to value))
     }
 
+    @Serializable
+    @SerialName("Onboarding")
+    data class Onboarding(
+        val uid: String,
+    ) : Event()
+
     abstract class DomainEvent6 : ScopedEvent() {
         abstract val viewRequest: DomainViewRequest6
         abstract val domainId: String
