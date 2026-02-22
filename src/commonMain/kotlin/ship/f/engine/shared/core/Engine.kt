@@ -52,6 +52,7 @@ object Engine {
 
     val engineScope = CoroutineScope(Dispatchers.Default)
     val queue = Queue()
+    val engineMutex = Mutex()
 
     /**
      * Typically, it is inefficient to allow more coroutines than logical cores available at runtime
@@ -113,8 +114,10 @@ object Engine {
         val scope = computedEvent.getScopes2().joinToString("/")
         val eventConfigs = config.eventMiddleWareConfigs[computedEvent::class]!!.eventConfigs2
 
-        eventConfigs[scope] = eventConfigs[scope]?.copy(event = computedEvent)
-            ?: EventConfig(computedEvent, eventConfigs[defaultScope2]!!.listeners) // TODO a bit hacky but subpubs should automatically get all scopes
+        engineMutex.withLock {
+            eventConfigs[scope] =
+                eventConfigs[scope]?.copy(event = computedEvent) ?: EventConfig(computedEvent, eventConfigs[defaultScope2]!!.listeners) // TODO a bit hacky but subpubs should automatically get all scopes
+        }
 
         eventConfigs[scope]!!.listeners.forEach {
             if (send) {
