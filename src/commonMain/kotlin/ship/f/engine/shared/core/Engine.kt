@@ -2,6 +2,7 @@ package ship.f.engine.shared.core
 
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
@@ -48,10 +49,17 @@ object Engine {
         }
     }
 
+    class Queue2 {
+        val channel = MutableSharedFlow<suspend () -> Unit>()
+        val queueScope = CoroutineScope(Dispatchers.Default)
+        fun add(v: suspend () -> Unit) = queueScope.launch { channel.emit(v) }
+    }
+
     private var config = Config()
 
     val engineScope = CoroutineScope(Dispatchers.Default)
     val queue = Queue()
+    val queue2 = Queue2()
     val engineMutex = Mutex()
 
     /**
@@ -99,6 +107,15 @@ object Engine {
         engineScope.launch {
             initialEvents.forEach { publish(it, "Initial Event", true) }
         }
+        queue2.queueScope.launch {
+            queue2.channel.collect {
+                try {
+                    it()
+                } catch (e: Exception) {
+                    sduiLog("Error in queue2", e, e.printStackTrace(), tag = "EngineX > Queue2 > Collect > Error")
+                }
+            }
+        }
     }
 
     suspend fun publish(event: E, reason: String, blocking: Boolean = false, send: Boolean = true) { // Do something with reason
@@ -125,7 +142,11 @@ object Engine {
                     it.lastEvent = computedEvent
                     it.executeEvent(computedEvent)
                 } else {
-                    queue.add {
+//                    queue.add {
+//                        it.lastEvent = computedEvent
+//                        it.executeEvent(computedEvent)
+//                    }
+                    queue2.add {
                         it.lastEvent = computedEvent
                         it.executeEvent(computedEvent)
                     }
@@ -133,7 +154,7 @@ object Engine {
             }
         }
 
-        queue.launchRunners()
+//        queue.launchRunners()
     }
 
     fun <SP : SubPub<out State>> getSubPub(subPubClass: KClass<out SP>, scope: ScopeTo): SP {
