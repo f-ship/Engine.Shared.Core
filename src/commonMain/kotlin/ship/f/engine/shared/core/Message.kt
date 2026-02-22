@@ -1,10 +1,19 @@
 package ship.f.engine.shared.core
 
-sealed class Message {
+import kotlinx.serialization.SerialName
+import kotlinx.serialization.Serializable
+
+
+@Serializable
+@SerialName("Message")
+sealed class Message : Event() {
     abstract val requestId: String
 
+    @Serializable
+    @SerialName("Data")
     data class Data(
         override val requestId: String,
+        val requesterId: String,
         val data: ScopedEvent,
         val binary: ByteArray? = null,
     ) : Message() {
@@ -29,10 +38,14 @@ sealed class Message {
         }
     }
 
+    @Serializable
+    @SerialName("Ack")
     data class Ack(
         override val requestId: String,
     ) : Message()
 
+    @Serializable
+    @SerialName("Init")
     data class Init(
         override val requestId: String,
         val map: Map<String, String>,

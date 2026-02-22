@@ -107,6 +107,7 @@ abstract class ScopedEvent {
     @SerialName("Onboarding")
     data class Onboarding(
         val uid: String,
+        val requesterId: String,
     ) : Event()
 
     abstract class DomainEvent6 : ScopedEvent() {
