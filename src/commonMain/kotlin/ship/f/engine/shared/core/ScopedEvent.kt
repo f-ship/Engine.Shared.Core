@@ -86,6 +86,7 @@ abstract class ScopedEvent {
         override val listCtx: Map<String, List<String>>,
         override val requesterId: String,
         override val requestId: String,
+        val version: Int = 0,
     ) : InitiatedViewRequest6() {
         override fun plus(key: String, value: String) = copy(ctx = ctx + (key to value))
         override fun plus(key: String, value: List<String>) = copy(listCtx = listCtx + (key to value))
