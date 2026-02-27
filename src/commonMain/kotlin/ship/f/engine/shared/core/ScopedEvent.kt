@@ -79,6 +79,19 @@ abstract class ScopedEvent {
     }
 
     @Serializable
+    data class FailedDomainViewRequest6(
+        override val id: Id2.ZoneId2,
+        override val ctx: Map<String, String>,
+        override val listCtx: Map<String, List<String>>,
+        override val requesterId: String,
+        override val requestId: String,
+        val focusDomainId: String, // TODO simply for debugging purposes, should always be the same as the first element in scopes
+    ) : InitiatedViewRequest6() {
+        override fun plus(key: String, value: String) = copy(ctx = ctx + (key to value))
+        override fun plus(key: String, value: List<String>) = copy(listCtx = listCtx + (key to value))
+    }
+
+    @Serializable
     @SerialName("InitiatedViewRequest6")
     data class TrivialViewRequest6(
         override val id: Id2.ZoneId2,
