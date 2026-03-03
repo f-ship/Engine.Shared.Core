@@ -9,7 +9,7 @@ plugins {
     alias(libs.plugins.androidLibrary)
     alias(libs.plugins.composeCompiler)
     alias(libs.plugins.composeMultiplatform)
-    kotlin("plugin.serialization") version "1.9.21"
+    kotlin("plugin.serialization") version "2.3.0"
 }
 
 group = "ship.f.engine.shared"
